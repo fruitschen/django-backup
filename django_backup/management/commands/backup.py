@@ -219,26 +219,45 @@ class Command(BaseCommand):
         # Backing up directories
         if self.directories:
             all_directories = ' '.join(self.directories)
-            print all_directories
-            host = '%s@%s' % (self.ftp_username, self.ftp_server)
-            remote_current_backup = os.path.join(self.remote_dir, 'current')
-            remote_backup_target = os.path.join(self.remote_dir, 'dir_%s' % (self._time_suffix()))
-            cmd = '''
+            #local media backup
+            if not self.delete_local and not self.no_local:
+                print 'Doing local media backup'
+                local_current_backup = os.path.join(self.backup_dir, 'current')
+                local_backup_target = os.path.join(self.backup_dir, 'dir_%s' % (self._time_suffix()))
+                cmd = '''
+rsync -az --link-dest=%(local_current_backup)s %(all_directories)s %(local_backup_target)s
+rm -f %(local_current_backup)s && ln -s %(local_backup_target)s %(local_current_backup)s
+                ''' % {
+                    'local_current_backup': local_current_backup,
+                    'all_directories': all_directories,
+                    'local_backup_target': local_backup_target,
+                }
+                print cmd
+                os.system(cmd)
+
+
+            #remote media backup
+            if self.ftp:
+                print 'Doing remote media backup'
+                host = '%s@%s' % (self.ftp_username, self.ftp_server)
+                remote_current_backup = os.path.join(self.remote_dir, 'current')
+                remote_backup_target = os.path.join(self.remote_dir, 'dir_%s' % (self._time_suffix()))
+                cmd = '''
 rsync -az --link-dest=%(remote_current_backup)s %(all_directories)s %(host)s:%(remote_backup_target)s
 ssh %(host)s "rm -f %(remote_current_backup)s && ln -s %(remote_backup_target)s %(remote_current_backup)s"
-            ''' % {
-                'remote_current_backup': remote_current_backup,
-                'all_directories': all_directories,
-                'host': host,
-                'remote_backup_target': remote_backup_target,
-            }
-            print cmd
-            sftp = self.get_connection()
-            try:
-                sftp.mkdir(self.remote_dir)
-            except IOError:
-                pass
-            os.system(cmd)
+                ''' % {
+                    'remote_current_backup': remote_current_backup,
+                    'all_directories': all_directories,
+                    'host': host,
+                    'remote_backup_target': remote_backup_target,
+                }
+                print cmd
+                sftp = self.get_connection()
+                try:
+                    sftp.mkdir(self.remote_dir)
+                except IOError:
+                    pass
+                os.system(cmd)
 
         # Sending mail with backups
         if self.email:
@@ -416,7 +435,7 @@ ssh %(host)s "rm -f %(remote_current_backup)s && ln -s %(remote_backup_target)s 
             if remove_all:
                 print '=' * 70
                 print 'cleaning up local media backups'
-                command = 'rm %s' % remove_all
+                command = 'rm -r %s' % remove_all
                 print '=' * 70
                 print 'Running Command: %s' % command
                 os.system(command)
