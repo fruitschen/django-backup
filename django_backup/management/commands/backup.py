@@ -224,7 +224,7 @@ class Command(BaseCommand):
             remote_current_backup = os.path.join(self.remote_dir, 'current')
             remote_backup_target = os.path.join(self.remote_dir, 'dir_%s' % (self._time_suffix()))
             cmd = '''
-rsync -azv --link-dest=%(remote_current_backup)s %(all_directories)s %(host)s:%(remote_backup_target)s
+rsync -az --link-dest=%(remote_current_backup)s %(all_directories)s %(host)s:%(remote_backup_target)s
 ssh %(host)s "rm -f %(remote_current_backup)s && ln -s %(remote_backup_target)s %(remote_current_backup)s"
             ''' % {
                 'remote_current_backup': remote_current_backup,
