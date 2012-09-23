@@ -217,23 +217,37 @@ class Command(BaseCommand):
             self.directories += [settings.MEDIA_ROOT]
 
         # Backing up directories
-        dir_outfiles = []
-
-        # Backup all the directories in one file. 
         if self.directories:
             all_directories = ' '.join(self.directories)
-            all_outfile = os.path.join(self.backup_dir, 'dir_%s.tar.gz' % (self._time_suffix()))
-            self.compress_dir(all_directories, all_outfile)
-            dir_outfiles.append(all_outfile)
+            print all_directories
+            host = '%s@%s' % (self.ftp_username, self.ftp_server)
+            remote_current_backup = os.path.join(self.remote_dir, 'current')
+            remote_backup_target = os.path.join(self.remote_dir, 'dir_%s' % (self._time_suffix()))
+            cmd = '''
+rsync -azv --link-dest=%(remote_current_backup)s %(all_directories)s %(host)s:%(remote_backup_target)s
+ssh %(host)s "rm -f %(remote_current_backup)s && ln -s %(remote_backup_target)s %(remote_current_backup)s"
+            ''' % {
+                'remote_current_backup': remote_current_backup,
+                'all_directories': all_directories,
+                'host': host,
+                'remote_backup_target': remote_backup_target,
+            }
+            print cmd
+            sftp = self.get_connection()
+            try:
+                sftp.mkdir(self.remote_dir)
+            except IOError:
+                pass
+            os.system(cmd)
 
         # Sending mail with backups
         if self.email:
             print "Sending e-mail with backups to '%s'" % self.email
-            self.sendmail(settings.SERVER_EMAIL, [self.email], dir_outfiles + [outfile])
+            self.sendmail(settings.SERVER_EMAIL, [self.email], [outfile])
 
         if self.ftp:
             print "Saving to remote server"
-            self.store_ftp(local_files=[os.path.join(os.getcwd(),x) for x in dir_outfiles + [outfile]])
+            self.store_ftp(local_files=[os.path.join(os.getcwd(),x) for x in [outfile]])
 
     def compress_dir(self, directory, outfile):
         print 'Backup directories ...'
@@ -424,7 +438,7 @@ class Command(BaseCommand):
             if remove_all_remote:
                 print '=' * 70
                 print 'cleaning up remote media backups'
-                command = 'rm %s' % remove_all_remote
+                command = 'rm -r %s' % remove_all_remote
                 print '=' * 70
                 print 'Running Command on remote server: %s' % command
                 sftp.execute(command)
